@@ -7,6 +7,7 @@ import csv
 import os
 import ipaddress
 import datetime
+import time
 
 def crc32_comp(str_):
 	str_ = bytearray(str_)
@@ -42,18 +43,25 @@ def lookup_tenant(tenant_ip):
 	for row in topo:
 		if (ipaddress.ip_address(unicode(tenant_ip)) in \
 			ipaddress.ip_network(unicode(row[0]))):
-			print 'row[1]' + str(row[1])
+			#print 'row[1]' + str(row[1])
 			return	row[1]
 
 
 def bitmatrix(router, ten, hash):
 	load = 0
 	comm_1 = 'load = bm_rtr_' + str(router) + '[' + str(hash%bm_len) + ']'
-	print comm_1
+	#print comm_1
 	exec(comm_1)
-	print (load)
+	#print (load)
+	if (2**(ten-1))&load:
+		now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+		file = open("collisions_register.csv","a")
+		file.write(str(now) + ","+
+				   str(router) + ","+ 
+				   str(ten) + "\n")
+		file.close()
 	comm_2 = 'bm_rtr_' + str(router) + '[' + str(hash%bm_len) + '] = ' + str(load|(2**(ten-1)))
-	print comm_2
+	#print comm_2
 	exec(comm_2)
 
 
@@ -79,11 +87,7 @@ def setup():
 			bm_rtr_9, \
 			bm_rtr_10, \
 			bm_rtr_11, \
-			bm_rtr_12, \
-			bm_rtr_13, \
-			bm_rtr_14, \
-			bm_rtr_15, \
-			bm_rtr_16
+			bm_rtr_12
 
 #	global 	rtable, \		# load src, dst tenants routing table in memory
 #			topo, \   		# to load tenant's src ip in memory
@@ -92,8 +96,8 @@ def setup():
 #			bm_pkt_size		# number of packet to process per bitmatrix
 
 	pkt_counter = 1
-	bm_len = 8192 #65536
-	pkt_per_epoc = 50 #16384
+	bm_len = 65536 #65536
+	pkt_per_epoc = 6553 #16384
 	bm_rtr_1 = [0] * bm_len
 	bm_rtr_2 = [0] * bm_len
 	bm_rtr_3 = [0] * bm_len
@@ -106,10 +110,6 @@ def setup():
 	bm_rtr_10 = [0] * bm_len
 	bm_rtr_11 = [0] * bm_len
 	bm_rtr_12 = [0] * bm_len
-	bm_rtr_13 = [0] * bm_len
-	bm_rtr_14 = [0] * bm_len
-	bm_rtr_15 = [0] * bm_len
-	bm_rtr_16 = [0] * bm_len	
 
 	# load src, dst tenants routing table in memory
 	with open('routing.csv', 'rb') as csvfile:
@@ -126,7 +126,7 @@ def setup():
 
 def save_bitmatrix():
 	now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-	for i in xrange(16):
+	for i in xrange(12):
 		a = 'file = open("bm_rtr_' + str(i+1) + '_' + str(now) + '","w")'
 		exec(a)
 		b = 'file.write(str(bm_rtr_' + str(i+1)+ '))'
@@ -137,14 +137,14 @@ def save_bitmatrix():
 
 
 def ppu(pkts):
-
 	for i in xrange(len(pkts)):
 		try:
 			pkt = [ord(c) for c in raw(pkts[i])]
-			print 'pkt number ' + str(i)
-			global pkt_counter, pkt_per_epoc
+			#print 'pkt number ' + str(i)
+			global pkt_counter, pkt_per_epoc, pkt_counter_master
+			pkt_counter_master += 1
 			pkt_counter += 1
-			print 'pkt_counter ' + str(pkt_counter)	
+			#print 'pkt_counter ' + str(pkt_counter)	
 
 			if pkt_counter > pkt_per_epoc*16:
 				save_bitmatrix()
@@ -152,15 +152,15 @@ def ppu(pkts):
 			ten_A = lookup_tenant(pkts[i].src)
 			ten_B = lookup_tenant(pkts[i].dst)
 			routers = routing_table(ten_A, ten_B)
-			print ten_A
-			print pkts[i].src
-			print ten_B
-			print pkts[i].dst
-			print routers
+			#print ten_A
+			#print pkts[i].src
+			#print ten_B
+			#print pkts[i].dst
+			#print routers
 			for router in routers:
 				bitmatrix(router, ten_A, hash)
 		 
-			print (hash)	
+			#print (hash)	
 
 		except Exception as e:
 			print ("pkt%d does not exists or cant be processed" % i)
@@ -176,9 +176,15 @@ def loader():
 
 def main():
 	setup()
+	global pkt_counter_master
+	pkt_counter_master = 1
 	cap_files = loader()
 	for cap_file in cap_files:
-		pkts=rdpcap(cap_file)
+		startload = time.time()
+		pkts=rdpcap("./captures/" + cap_file)
+		endload = time.time()
+		print ("Levou " + str(endload-startload) + \
+			   " segundos para carregar a captura " + str(cap_file))
 		ppu(pkts)
 
 
