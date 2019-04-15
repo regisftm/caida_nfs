@@ -61,7 +61,7 @@ def bitmatrix(router, ten, hash):
 				   str(ten) + "\n")
 		file.close()
 	comm_2 = 'bm_rtr_' + str(router) + '[' + str(hash%bm_len) + '] = ' + str(load|(2**(ten-1)))
-	#print comm_2
+	print comm_2
 	exec(comm_2)
 
 
