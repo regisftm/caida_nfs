@@ -84,7 +84,7 @@ def ppu(pkts):
 			#print 'pkt_counter ' + str(pkt_counter)	
 			#print ('r\processados ' + str(pkt_counter) + ' pacote.')
 #
-			if pkt_counter > 250000:
+			if pkt_counter > 430000:
 				#print ('r\processados ' + str(pkt_counter) + ' pacote.')
 				i = 0
 				for counter in link_byte_counter:
