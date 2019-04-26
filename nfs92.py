@@ -146,7 +146,7 @@ def ppu(pkts):
 			pkt_counter += 1
 			#print 'pkt_counter ' + str(pkt_counter)	
 
-			if pkt_counter > pkt_per_epoc*16:
+			if pkt_counter > 430000:
 				save_bitmatrix()
 			hash = hashing(pkt)
 			ten_A = lookup_tenant(pkts[i].src)
@@ -168,7 +168,7 @@ def ppu(pkts):
 
 def loader():
 	cap_files = []
-	for (dirpath, dirnames, filenames) in os.walk("./captures"):
+	for (dirpath, dirnames, filenames) in os.walk("../traffic"):
 		cap_files.extend(filenames)
 		print cap_files
 		return cap_files
@@ -181,7 +181,7 @@ def main():
 	cap_files = loader()
 	for cap_file in cap_files:
 		startload = time.time()
-		pkts=rdpcap("./captures/" + cap_file)
+		pkts=rdpcap("../traffic/" + cap_file)
 		endload = time.time()
 		print ("Levou " + str(endload-startload) + \
 			   " segundos para carregar a captura " + str(cap_file))
