@@ -9,10 +9,10 @@ import datetime
 import time
 import sys
 
-def crc32_comp(str_):
+def crc16_comp(str_):
 	str_ = bytearray(str_)
-	crc32 = crcmod.mkCrcFun(0x104C11DB7, rev=False, initCrc=0xFFFFFFFF, xorOut=0xFFFFFFFF)
-	answer = crc32(str(str_))
+	crc16 = crcmod.mkCrcFun(0x18005, rev=False, initCrc=0xFFFF, xorOut=0x0000)
+	answer = crc16(str(str_))
 	return answer
 
 def hashing(pkt):
@@ -25,20 +25,17 @@ def hashing(pkt):
 			pkt[16],pkt[17],pkt[18],pkt[19], #dstAddr
 			pkt[20],pkt[21],pkt[22],pkt[23], #payld bytes 1-4
 			pkt[24],pkt[25],pkt[26],pkt[27]] #payld bytes 5-8
-	hash_crc32 = crc32_comp(hashlst)
- 	return hash_crc32
+	hash_crc16 = crc16_comp(hashlst)
+ 	return hash_crc16
 
 def setup():
 
 	#define global variable to:
 	global 	rtable, \
-			ltable, \
 			topo, \
 			pkt_counter, \
 			bm_len, \
 			bm_pkt_size, \
-			pkt_per_epoc, \
-			fail, \
 			bm_rtr_1, \
 			bm_rtr_2, \
 			bm_rtr_3, \
@@ -75,9 +72,7 @@ def setup():
 			pktcounter_rtr_9, \
 			pktcounter_rtr_10, \
 			pktcounter_rtr_11, \
-			pktcounter_rtr_12, \
-			link_pkt_counter, \
-			link_byte_counter
+			pktcounter_rtr_12
 
 #	global 	rtable, \		# load src, dst tenants routing table in memory
 #			topo, \   		# to load tenant's src ip in memory
@@ -87,9 +82,6 @@ def setup():
 
 	pkt_counter = 0
 	bm_len = 65536 #65536
-	pkt_per_epoc = 6553 #16384
-	link_pkt_counter = [0] * 33
-	link_byte_counter = [0] * 33
 	num_of_tenants = 17
 	bm_rtr_1 = [[0 for x in range(bm_len)] for y in range(num_of_tenants)]
 	bm_rtr_2 = [[0 for x in range(bm_len)] for y in range(num_of_tenants)]
@@ -144,21 +136,6 @@ def setup():
 		topo = [[ipaddress.ip_network(unicode(row[0]), strict=False), int(row[1])] \
 				for row in reader]
 
-	# load src, dst tenants link routing table in memory
-	with open('link_route.csv', 'rb') as csvfile:
-		reader = csv.reader(csvfile, delimiter=',')
-		ltable = [[int(row[0]), int(row[1]), int(row[2]), int(row[3]), \
-				int(row[4]), int(row[5]), int(row[6]), int(row[7]), int(row[8])] \
-				for row in reader]
-
-
-def link_table(ten_a, ten_b):
-	for row in ltable:
-		if (row[0] == ten_a and row[1] == ten_b):
-			while 0 in row:
-				row.remove(0)
-			return row[2:]
-
 def routing_table(ten_a, ten_b):
 	for row in rtable:
 		if (row[0] == ten_a and row[1] == ten_b):
@@ -173,33 +150,24 @@ def lookup_tenant(tenant_ip):
 			return	row[1]
 
 def bitmatrix(router, ten, hash):
-	#print 'router: ' + str(router) + ' | tenant: ' + str(ten) + ' | position: ' + str(hash%bm_len)
 	comm = 'pktcounter_rtr_' + str(router) + \
 		 	 '[' + str(ten) + ']'+ \
 		     ' += 1'
-	#print comm
 	exec(comm)
 	load = 0
 	comm = 'load = bm_rtr_' + str(router) + \
 			 '[' + str(ten) + ']'+ \
 			 '[' + str(hash%bm_len) + ']'
-	#print comm
 	exec(comm)
-	#print 'load = ' + str(load)
 	if load == 1:
 		comm = 'colision_rtr_' + str(router) + \
 			 	 '[' + str(ten) + ']'+ \
 			     ' += 1'
-		#print comm
 		exec(comm)
 	comm = 'bm_rtr_' + str(router) + \
 			 '[' + str(ten) + ']'+ \
 			 '[' + str(hash%bm_len) + '] = 1' 
-	#print comm
 	exec(comm)
-	return
-
-	# bm_rtr [tenant] [position]
 
 def print_counters_bitmatrix():
 	global recordtime
@@ -213,15 +181,9 @@ def print_counters_bitmatrix():
 			comm1 = 'colli = colision_rtr_'+ str(j) + '[' + str(i) +']'
 			sumbm = 0
 			comm2 = 'sumbm = sum(bm_rtr_' + str(j) + '[' + str(i) +'])'
-			#print comm0
-			#print comm1
-			#print comm2
 			exec(comm0)
 			exec(comm1)
 			exec(comm2)
-			#print 'pkt_cnt = ' + str(pkt_cnt)
-			#print 'colli = '  + str(colli)
-			#print 'sumbm = '  + str(sumbm)
 			file.write(str(recordtime) + ","+
 					   str(i) + ","+ 
 					   str(j) + ","+ 
@@ -229,34 +191,17 @@ def print_counters_bitmatrix():
 					   str(colli) + ","+ 
 					   str(sumbm) + ","+ 
 					   str("{:3.2f}".format((pkt_cnt/float(bm_len))*100)) + '%' + ","+ 
-					   str("{:3.2f}".format((colli/float(bm_len))*100)) + '%' + "\n")
-			print 'Tenant ' + str(i) + ' - Router ' + str(j) +  ' > ' + \
-				  ' Packets: ' + str(pkt_cnt) + \
-				  ' | Collions: ' + str(colli) + \
-				  ' | BM_Packets Count: ' + str(sumbm) + \
-				  ' | %Occupation: ' + str("{:3.2f}".format((pkt_cnt/float(bm_len))*100)) + '%' + \
-				  ' | %Collisions: ' + str("{:3.2f}".format((colli/float(bm_len))*100)) + '%'
+					   str("{:3.2f}".format((colli/float(pkt_cnt))*100)) + '%' + "\n")
 	file.close()
 	
-
-
-def print_links_stats():
-	#print 'dentro o print_links_stats()'
-	for i in xrange(32):
-		print 'link#' + str(i+1) + ': ' + \
-		 	  str("{:3.2f}".format(((float(link_byte_counter[i])*8)/10)/1000000))  + \
-		 	  'Mbps | ' + str(link_byte_counter[i]) + ' bytes | ' + \
-		 	  str(link_pkt_counter[i]) + ' pacotes trafegados |' + \
-		 	  ' em 10 segundos'
 
 def ppu(pkts):
 	for i in xrange(len(pkts)):
 		try:
-			global pkt_counter, pkt_per_epoc, pkt_counter_master, fail
+			global pkt_counter, pkt_counter_master
 			# 43,000 pkts corresponds to 1 second of traffic
 			if pkt_counter > 430000:
 				print_counters_bitmatrix()
-				print_links_stats()
 				setup()
 			pkt = [ord(c) for c in raw(pkts[i])]
 			for f in range(28-len(pkt)):
@@ -265,21 +210,13 @@ def ppu(pkts):
 			ten_A = lookup_tenant(pkts[i].src)
 			ten_B = lookup_tenant(pkts[i].dst)
 			routers = routing_table(ten_A, ten_B)
-			links = link_table(ten_A, ten_B)
 			for router in routers:
 				bitmatrix(router, ten_A, hash)
-			for link in links:
-				link_pkt_counter[link] += 1
-				link_byte_counter[link] += pkts[i].len	
-
 			pkt_counter_master += 1
 			pkt_counter += 1
-			sys.stdout.write("\r%d total packets processed | %d packets for this batch - %0.2f%%" %(pkt_counter_master,pkt_counter,(pkt_counter/float(430000)*100)))
-			sys.stdout.flush()  
-		 
+			
 		except Exception as e:
-			fail += 1
-			sys.stdout.write("\r                                                                            | pkt %d does not exists or cant be processed | %d packets failed" % (i,fail))
+			sys.stdout.write("\r pkt %d does not exists or cant be processed"  % i)
 			sys.stdout.flush()
 
 
@@ -293,16 +230,14 @@ def loader():
 
 def main():
 	setup()
-	global pkt_counter_master, recordtime, fail 
+	global pkt_counter_master, recordtime 
 	recordtime = datetime.datetime(2020, 1, 1, 0, 0, 0)
 	pkt_counter_master = 0
-	fail = 0
 	cap_files = loader()
 	for cap_file in cap_files:
 		startload = time.time()
 		print 'loading capture file "' + cap_file + '" please, be patient...'
 		pkts=rdpcap("../traffic/" + cap_file)
-		#pkts=rdpcap("50_caida.pcap")
 		endload = time.time()
 		print 'capture file "' + str(cap_file) + \
 			  '" were loadede in ' + str("{:10.2f}".format(float(endload-startload))) + ' seconds'
